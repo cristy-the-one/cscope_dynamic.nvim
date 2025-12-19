@@ -34,7 +34,7 @@ This means you get instant updates while editing, with the option to periodicall
 
 ```lua
 {
-  "yourusername/cscope_dynamic.nvim",
+  "cristy-the-one/cscope_dynamic.nvim",
   dependencies = {
     "ibhagwan/fzf-lua",  -- optional, for fzf-lua picker
     -- "nvim-telescope/telescope.nvim",  -- optional, for telescope picker
@@ -50,7 +50,7 @@ This means you get instant updates while editing, with the option to periodicall
 
 ```lua
 use {
-  "yourusername/cscope_dynamic.nvim",
+  "cristy-the-one/cscope_dynamic.nvim",
   requires = { "ibhagwan/fzf-lua" },
   config = function()
     require("cscope_dynamic").setup({
