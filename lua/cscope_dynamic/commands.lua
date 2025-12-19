@@ -56,13 +56,47 @@ function M.setup()
   vim.api.nvim_create_user_command("CscopeDebug", function()
     local utils = require("cscope_dynamic.utils")
     local root = cscope.state.project_root or vim.fn.getcwd()
-    local cmd = utils.make_find_cmd(cscope.config, root)
     
+    -- Platform info
+    vim.notify("=== Cscope Debug Info ===", vim.log.levels.INFO)
+    vim.notify("Platform: " .. (utils.is_windows() and "Windows" or "Unix"), vim.log.levels.INFO)
     vim.notify("Project root: " .. root, vim.log.levels.INFO)
-    vim.notify("Find command: " .. cmd, vim.log.levels.INFO)
     
-    -- Run it and show results
-    local success, files, stderr = utils.sync_cmd(cmd)
+    -- Executable info
+    vim.notify("", vim.log.levels.INFO)
+    vim.notify("=== Executables ===", vim.log.levels.INFO)
+    vim.notify("cscope: " .. (cscope.config.exec or "not set"), vim.log.levels.INFO)
+    vim.notify("fd: " .. (cscope.config._fd_exec or "not found"), vim.log.levels.INFO)
+    vim.notify("rg: " .. (cscope.config._rg_exec or "not found"), vim.log.levels.INFO)
+    vim.notify("file_finder: " .. (cscope.config.file_finder or "auto"), vim.log.levels.INFO)
+    
+    -- Database info
+    vim.notify("", vim.log.levels.INFO)
+    vim.notify("=== Databases ===", vim.log.levels.INFO)
+    local db_files = {
+      {name = "cscope.out", path = root .. "/cscope.out"},
+      {name = ".cscope.big", path = root .. "/.cscope.big"},
+      {name = ".cscope.small", path = root .. "/.cscope.small"},
+      {name = "cscope.files", path = root .. "/cscope.files"},
+      {name = ".cscope.files", path = root .. "/.cscope.files"},
+    }
+    for _, db in ipairs(db_files) do
+      local exists = vim.fn.filereadable(db.path) == 1
+      local status = exists and "EXISTS" or "not found"
+      if exists then
+        local size = vim.fn.getfsize(db.path)
+        status = status .. " (" .. size .. " bytes)"
+      end
+      vim.notify("  " .. db.name .. ": " .. status, vim.log.levels.INFO)
+    end
+    
+    -- File finding test
+    vim.notify("", vim.log.levels.INFO)
+    vim.notify("=== File Finding Test ===", vim.log.levels.INFO)
+    local cmd = utils.make_find_cmd(cscope.config, root)
+    vim.notify("Command: " .. cmd, vim.log.levels.INFO)
+    
+    local success, files, stderr = utils.sync_cmd(cmd, {timeout = 5000})
     if success then
       vim.notify("Found " .. #files .. " files", vim.log.levels.INFO)
       if #files > 0 and #files <= 10 then
@@ -76,10 +110,21 @@ function M.setup()
         vim.notify("  ... and " .. (#files - 5) .. " more", vim.log.levels.INFO)
       end
     else
-      vim.notify("Command failed: " .. table.concat(stderr or {}, "\n"), vim.log.levels.ERROR)
+      vim.notify("Command failed!", vim.log.levels.ERROR)
+      if stderr and #stderr > 0 then
+        vim.notify("Error: " .. table.concat(stderr, "\n"), vim.log.levels.ERROR)
+      end
     end
+    
+    -- State info
+    vim.notify("", vim.log.levels.INFO)
+    vim.notify("=== Plugin State ===", vim.log.levels.INFO)
+    vim.notify("initialized: " .. tostring(cscope.state.initialized), vim.log.levels.INFO)
+    vim.notify("updating: " .. tostring(cscope.state.updating), vim.log.levels.INFO)
+    vim.notify("big_db_path: " .. (cscope.state.big_db_path or "nil"), vim.log.levels.INFO)
+    vim.notify("small_files: " .. #cscope.state.small_files .. " tracked", vim.log.levels.INFO)
   end, {
-    desc = "Debug cscope file finding",
+    desc = "Debug cscope setup and file finding",
   })
 
   -- Status command
