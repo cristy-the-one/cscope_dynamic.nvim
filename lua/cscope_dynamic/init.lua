@@ -389,8 +389,15 @@ function M.setup(opts)
       callback = function()
         if not M.state.initialized then
           local root = find_project_root()
-          if root and vim.fn.filereadable(root .. "/" .. M.config.db_big) == 1 then
-            M.init({ root = root })
+          if root then
+            local has_our_db = vim.fn.filereadable(root .. "/" .. M.config.db_big) == 1
+            local has_standard_db = vim.fn.filereadable(root .. "/cscope.out") == 1
+            
+            if has_our_db then
+              M.init({ root = root })
+            elseif has_standard_db and M.config.adopt_existing_db then
+              M.adopt_existing(root)
+            end
           end
         end
       end,
@@ -423,6 +430,25 @@ end
 ---@return boolean
 function M.is_initialized()
   return M.state.initialized
+end
+
+--- Adopt an existing cscope.out database (created externally)
+---@param root string Project root
+function M.adopt_existing(root)
+  M.state.project_root = root
+  M.state.big_db_path = root .. "/cscope.out"
+  M.state.small_db_path = root .. "/" .. M.config.db_small
+  M.state.files_list_path = root .. "/" .. M.config.db_files_list
+  
+  -- Check for existing cscope.files
+  local existing_files = root .. "/cscope.files"
+  if vim.fn.filereadable(existing_files) == 1 then
+    M.state.files_list_path = existing_files
+  end
+  
+  M.state.initialized = true
+  log("Adopted existing database at: " .. M.state.big_db_path)
+  vim.notify("cscope_dynamic: Using existing cscope.out", vim.log.levels.INFO)
 end
 
 --- Check if currently updating
