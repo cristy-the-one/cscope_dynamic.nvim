@@ -17,11 +17,27 @@ function M.build_initial(config, state, callback)
 
   -- Generate file list
   local find_cmd = utils.make_find_cmd(config, root)
+  
+  -- Debug: show command
+  if config.debug then
+    vim.schedule(function()
+      vim.notify("cscope_dynamic: Running: " .. find_cmd, vim.log.levels.DEBUG)
+    end)
+  end
 
-  utils.async_cmd(find_cmd, { cwd = root }, function(success, files)
-    if not success or #files == 0 then
+  utils.async_cmd(find_cmd, { cwd = root }, function(success, files, stderr)
+    if not success then
       vim.schedule(function()
-        vim.notify("cscope_dynamic: No source files found", vim.log.levels.WARN)
+        vim.notify("cscope_dynamic: Find command failed: " .. table.concat(stderr or {}, "\n"), vim.log.levels.ERROR)
+        callback(false)
+      end)
+      return
+    end
+    
+    if #files == 0 then
+      vim.schedule(function()
+        vim.notify("cscope_dynamic: No source files found in " .. root, vim.log.levels.WARN)
+        vim.notify("cscope_dynamic: Command was: " .. find_cmd, vim.log.levels.DEBUG)
         callback(false)
       end)
       return
