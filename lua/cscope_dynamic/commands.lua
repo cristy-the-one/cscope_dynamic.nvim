@@ -190,16 +190,14 @@ function M.handle_cscope_cmd(args)
     vim.cmd("CscopeStatus")
 
   elseif subcmd == "kill" then
-    -- Kill cscope connections
-    pcall(function()
-      vim.cmd("cscope kill -1")
-    end)
+    -- Clear state
     cscope.state.initialized = false
-    vim.notify("Cscope connections killed", vim.log.levels.INFO)
+    cscope.state.small_files = {}
+    vim.notify("Cscope state cleared", vim.log.levels.INFO)
 
   elseif subcmd == "reset" then
     cscope.load_databases()
-    vim.notify("Cscope connections reset", vim.log.levels.INFO)
+    vim.notify("Cscope databases reloaded", vim.log.levels.INFO)
 
   elseif subcmd == "help" or subcmd == "?" then
     M.show_help()
