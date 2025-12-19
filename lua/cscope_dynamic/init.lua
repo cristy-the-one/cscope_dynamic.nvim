@@ -21,6 +21,9 @@ M.defaults = {
 
   -- Auto-initialization
   auto_init = true,
+  
+  -- Adopt existing cscope.out if found (useful for pre-existing databases)
+  adopt_existing_db = true,
 
   -- File patterns to index (for find command)
   file_patterns = { "*.c", "*.h", "*.cpp", "*.hpp", "*.cc", "*.hh", "*.cxx", "*.hxx" },
@@ -31,8 +34,16 @@ M.defaults = {
   -- Exclude patterns
   exclude_dirs = { ".git", "build", "node_modules", ".cache" },
 
-  -- Cscope executable
-  exec = "cscope",
+  -- Executable paths (nil = auto-detect, or set explicit path)
+  -- On Windows, set full path to avoid PowerShell alias conflicts
+  -- Example: exec = "C:/tools/cscope/cscope.exe"
+  exec = nil,           -- cscope executable (nil = "cscope")
+  fd_exec = nil,        -- fd executable (nil = auto-detect "fd" or "fdfind")
+  rg_exec = nil,        -- ripgrep executable (nil = "rg") - for future use
+  
+  -- File finder preference: "auto", "fd", "rg", "find", "powershell"
+  -- "auto" tries fd -> rg -> find/powershell
+  file_finder = "auto",
 
   -- Additional cscope arguments
   cscope_args = { "-q", "-k" }, -- -q for faster queries, -k for kernel mode (no /usr/include)
@@ -317,16 +328,55 @@ function M.get_query_desc(query_type)
   return descriptions[query_type] or "Unknown query type"
 end
 
+--- Resolve executable path (handles nil, validates existence)
+---@param configured string|nil Configured path or nil for auto-detect
+---@param fallbacks string[] List of names to try
+---@return string|nil executable path or nil if not found
+local function resolve_executable(configured, fallbacks)
+  if configured then
+    -- Explicit path configured - check if it exists
+    if vim.fn.executable(configured) == 1 then
+      return configured
+    end
+    -- Try as-is for full paths on Windows
+    if vim.fn.filereadable(configured) == 1 then
+      return configured
+    end
+    return nil
+  end
+  
+  -- Auto-detect from fallbacks
+  for _, name in ipairs(fallbacks) do
+    if vim.fn.executable(name) == 1 then
+      return name
+    end
+  end
+  return nil
+end
+
 --- Setup the plugin
 ---@param opts? table Configuration options
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", {}, M.defaults, opts or {})
 
-  -- Check if cscope binary is available
-  if vim.fn.executable(M.config.exec) == 0 then
-    vim.notify("cscope_dynamic: '" .. M.config.exec .. "' not found in PATH", vim.log.levels.ERROR)
+  -- Resolve cscope executable
+  local cscope_exec = resolve_executable(M.config.exec, { "cscope" })
+  if not cscope_exec then
+    local configured = M.config.exec or "cscope"
+    vim.notify("cscope_dynamic: '" .. configured .. "' not found. Set config.exec to full path.", vim.log.levels.ERROR)
     return
   end
+  M.config.exec = cscope_exec
+  
+  -- Resolve fd executable (optional, for file finding)
+  M.config._fd_exec = resolve_executable(M.config.fd_exec, { "fd", "fdfind", "fd.exe" })
+  
+  -- Resolve rg executable (optional, for file finding) 
+  M.config._rg_exec = resolve_executable(M.config.rg_exec, { "rg", "rg.exe" })
+  
+  log("Resolved executables - cscope: " .. M.config.exec .. 
+      ", fd: " .. (M.config._fd_exec or "N/A") ..
+      ", rg: " .. (M.config._rg_exec or "N/A"))
 
   -- Setup autocommands
   local group = vim.api.nvim_create_augroup("CscopeDynamic", { clear = true })
