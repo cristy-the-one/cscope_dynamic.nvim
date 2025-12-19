@@ -52,6 +52,36 @@ function M.setup()
     desc = "Rebuild cscope database",
   })
 
+  -- Debug command to test file finding
+  vim.api.nvim_create_user_command("CscopeDebug", function()
+    local utils = require("cscope_dynamic.utils")
+    local root = cscope.state.project_root or vim.fn.getcwd()
+    local cmd = utils.make_find_cmd(cscope.config, root)
+    
+    vim.notify("Project root: " .. root, vim.log.levels.INFO)
+    vim.notify("Find command: " .. cmd, vim.log.levels.INFO)
+    
+    -- Run it and show results
+    local success, files, stderr = utils.sync_cmd(cmd)
+    if success then
+      vim.notify("Found " .. #files .. " files", vim.log.levels.INFO)
+      if #files > 0 and #files <= 10 then
+        for _, f in ipairs(files) do
+          vim.notify("  " .. f, vim.log.levels.INFO)
+        end
+      elseif #files > 10 then
+        for i = 1, 5 do
+          vim.notify("  " .. files[i], vim.log.levels.INFO)
+        end
+        vim.notify("  ... and " .. (#files - 5) .. " more", vim.log.levels.INFO)
+      end
+    else
+      vim.notify("Command failed: " .. table.concat(stderr or {}, "\n"), vim.log.levels.ERROR)
+    end
+  end, {
+    desc = "Debug cscope file finding",
+  })
+
   -- Status command
   vim.api.nvim_create_user_command("CscopeStatus", function()
     local db = require("cscope_dynamic.db")
