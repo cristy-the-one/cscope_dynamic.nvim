@@ -209,44 +209,60 @@ end
 ---@param root string
 ---@return string
 function M.make_find_cmd(config, root)
-  local parts = { "find" }
-
-  -- Add source directories
-  for _, dir in ipairs(config.src_dirs) do
-    if dir == "." then
-      table.insert(parts, M.shell_escape(root))
-    else
-      table.insert(parts, M.shell_escape(root .. "/" .. dir))
-    end
+  -- Prefer fd/fdfind if available (simpler and faster)
+  local fd_cmd = nil
+  if vim.fn.executable("fd") == 1 then
+    fd_cmd = "fd"
+  elseif vim.fn.executable("fdfind") == 1 then
+    fd_cmd = "fdfind"
   end
-
-  -- Add exclude patterns
-  table.insert(parts, "\\(")
-  for i, exclude in ipairs(config.exclude_dirs) do
-    if i > 1 then
-      table.insert(parts, "-o")
+  
+  if fd_cmd then
+    -- fd is much simpler
+    local extensions = {}
+    for _, pattern in ipairs(config.file_patterns) do
+      -- Convert *.c to c
+      local ext = pattern:match("^%*%.(.+)$")
+      if ext then
+        table.insert(extensions, "-e " .. ext)
+      end
     end
-    table.insert(parts, "-name")
-    table.insert(parts, M.shell_escape(exclude))
-  end
-  table.insert(parts, "\\)")
-  table.insert(parts, "-prune")
-  table.insert(parts, "-o")
-
-  -- Add file patterns
-  table.insert(parts, "\\(")
-  for i, pattern in ipairs(config.file_patterns) do
-    if i > 1 then
-      table.insert(parts, "-o")
+    
+    local excludes = {}
+    for _, dir in ipairs(config.exclude_dirs) do
+      table.insert(excludes, "-E " .. dir)
     end
-    table.insert(parts, "-name")
-    table.insert(parts, M.shell_escape(pattern))
+    
+    return fd_cmd .. " --type f " .. table.concat(extensions, " ") .. " " .. table.concat(excludes, " ") .. " . " .. M.shell_escape(root)
   end
-  table.insert(parts, "\\)")
-  table.insert(parts, "-type f")
-  table.insert(parts, "-print")
-
-  return table.concat(parts, " ")
+  
+  -- Fallback to find
+  -- Build exclude args
+  local exclude_parts = {}
+  for _, exclude in ipairs(config.exclude_dirs) do
+    table.insert(exclude_parts, "-path '*/" .. exclude .. "/*'")
+  end
+  
+  -- Build name patterns
+  local name_parts = {}
+  for _, pattern in ipairs(config.file_patterns) do
+    table.insert(name_parts, "-name '" .. pattern .. "'")
+  end
+  
+  -- Simpler find command
+  local cmd = "find " .. M.shell_escape(root) .. " -type f"
+  
+  -- Add name filters with OR
+  if #name_parts > 0 then
+    cmd = cmd .. " \\( " .. table.concat(name_parts, " -o ") .. " \\)"
+  end
+  
+  -- Add excludes
+  for _, excl in ipairs(exclude_parts) do
+    cmd = cmd .. " ! " .. excl
+  end
+  
+  return cmd
 end
 
 --- Debounce function
