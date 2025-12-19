@@ -71,6 +71,9 @@ require("cscope_dynamic").setup({
 
   -- Auto-initialize when entering a project with existing database
   auto_init = true,
+  
+  -- Adopt existing cscope.out if found (useful for pre-built databases)
+  adopt_existing_db = true,
 
   -- File patterns to index
   file_patterns = { "*.c", "*.h", "*.cpp", "*.hpp", "*.cc", "*.hh" },
@@ -81,8 +84,15 @@ require("cscope_dynamic").setup({
   -- Directories to exclude
   exclude_dirs = { ".git", "build", "node_modules", ".cache" },
 
-  -- Cscope executable ("cscope" or "gtags-cscope")
-  exec = "cscope",
+  -- Executable paths (nil = auto-detect from PATH)
+  -- Set explicit paths to avoid shell alias conflicts (especially on Windows/PowerShell)
+  exec = nil,           -- cscope executable, e.g., "C:/tools/cscope.exe"
+  fd_exec = nil,        -- fd executable, e.g., "C:/tools/fd.exe"
+  rg_exec = nil,        -- ripgrep executable (for future use)
+  
+  -- File finder preference: "auto", "fd", "rg", "find", "powershell"
+  -- "auto" tries: fd -> rg -> find (Unix) / powershell (Windows)
+  file_finder = "auto",
 
   -- Additional cscope arguments
   cscope_args = { "-q", "-k" },
@@ -223,6 +233,55 @@ require("lualine").setup({
 3. **Query as needed**: Use any of the keymaps or commands to search
 4. **Periodic rebuild**: Optionally run `:CscopeRebuild` to merge small changes back to big database
 
+## 🪟 Windows Setup
+
+The plugin works on Windows with some additional setup:
+
+### Prerequisites
+
+1. **Install cscope for Windows**: Download from [cscope-win32](https://code.google.com/archive/p/cscope-win32/) or build from source
+2. **Install fd** (recommended): `winget install sharkdp.fd` or `scoop install fd`
+
+### Configuration for Windows
+
+PowerShell aliases can shadow executables. Specify full paths to avoid conflicts:
+
+```lua
+require("cscope_dynamic").setup({
+  -- Full paths to avoid PowerShell alias conflicts
+  exec = "C:/tools/cscope/cscope.exe",
+  fd_exec = "C:/Users/YourName/scoop/shims/fd.exe",  -- if installed via scoop
+  -- Or if fd is in PATH and not aliased:
+  -- fd_exec = "fd.exe",
+  
+  -- Use fd explicitly (skip auto-detection)
+  file_finder = "fd",
+  
+  -- Adopt pre-existing databases created from command line
+  adopt_existing_db = true,
+})
+```
+
+### Finding Your Executable Paths
+
+In PowerShell:
+```powershell
+# Find where fd.exe actually is (not the alias)
+Get-Command fd.exe | Select-Object Source
+
+# Or for cscope
+Get-Command cscope.exe | Select-Object Source
+```
+
+### Troubleshooting
+
+Run `:CscopeDebug` to see:
+- Detected platform
+- Resolved executable paths
+- Which file finder is being used
+- Existing database files
+- File finding test results
+
 ## 🆚 Comparison with Other Plugins
 
 | Feature | cscope_dynamic.nvim | cscope_maps.nvim | Original cscope_dynamic |
@@ -234,6 +293,8 @@ require("lualine").setup({
 | Written in Lua | ✅ | ✅ | ❌ (VimScript) |
 | Neovim only | ✅ | ✅ | ❌ |
 | Traditional keymaps | ✅ | ✅ | ❌ |
+| Windows support | ✅ | ✅ | ❌ |
+| Adopt existing DB | ✅ | ✅ | ❌ |
 
 ## 🤝 Related Projects
 
