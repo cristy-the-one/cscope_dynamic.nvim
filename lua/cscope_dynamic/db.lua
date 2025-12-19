@@ -263,8 +263,8 @@ function M.query(config, state, query_type, symbol)
           parsed.display_path = utils.relative_path(parsed.filename, root)
 
           -- Resolve to absolute for jumping
-          if not parsed.filename:match("^/") then
-            parsed.filename = root .. "/" .. parsed.filename
+          if not utils.is_absolute_path(parsed.filename) then
+            parsed.filename = utils.path_join(root, parsed.filename)
           end
 
           table.insert(results, parsed)
