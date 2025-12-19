@@ -171,37 +171,21 @@ function M.init(opts)
   return true
 end
 
---- Load cscope databases into Neovim
+--- Mark databases as loaded (no vim cscope commands needed - we query directly)
 function M.load_databases()
-  -- Reset cscope connections
-  pcall(function()
-    vim.cmd("cscope kill -1")
-  end)
-
-  -- Add databases
-  local added = false
+  local loaded = false
 
   if vim.fn.filereadable(M.state.big_db_path) == 1 then
-    local ok = pcall(function()
-      vim.cmd("cscope add " .. vim.fn.fnameescape(M.state.big_db_path))
-    end)
-    if ok then
-      added = true
-      log("Added big DB: " .. M.state.big_db_path)
-    end
+    loaded = true
+    log("Big DB available: " .. M.state.big_db_path)
   end
 
   if vim.fn.filereadable(M.state.small_db_path) == 1 then
-    local ok = pcall(function()
-      vim.cmd("cscope add " .. vim.fn.fnameescape(M.state.small_db_path))
-    end)
-    if ok then
-      added = true
-      log("Added small DB: " .. M.state.small_db_path)
-    end
+    loaded = true
+    log("Small DB available: " .. M.state.small_db_path)
   end
 
-  return added
+  return loaded
 end
 
 --- Build initial cscope database
@@ -338,16 +322,11 @@ end
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", {}, M.defaults, opts or {})
 
-  -- Ensure cscope is enabled in Neovim
-  if vim.fn.has("cscope") == 0 then
-    vim.notify("cscope_dynamic: Neovim was not compiled with cscope support", vim.log.levels.ERROR)
+  -- Check if cscope binary is available
+  if vim.fn.executable(M.config.exec) == 0 then
+    vim.notify("cscope_dynamic: '" .. M.config.exec .. "' not found in PATH", vim.log.levels.ERROR)
     return
   end
-
-  -- Set cscope options
-  vim.opt.cscopetag = true
-  vim.opt.csto = 0
-  vim.opt.cscopeverbose = false
 
   -- Setup autocommands
   local group = vim.api.nvim_create_augroup("CscopeDynamic", { clear = true })
