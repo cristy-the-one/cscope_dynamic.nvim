@@ -25,7 +25,7 @@ local function format_result(result)
   return table.concat(parts, ":")
 end
 
--- Forward declarations for fallback
+-- Forward declaration for fallback
 local show_quickfix
 
 --- Show results using fzf-lua
@@ -36,18 +36,21 @@ local show_quickfix
 local function show_fzf_lua(config, results, query_type, symbol)
   local ok, fzf = pcall(require, "fzf-lua")
   if not ok then
-    vim.notify("cscope_dynamic: fzf-lua not available, falling back to quickfix", vim.log.levels.WARN)
+    vim.notify(
+      "cscope_dynamic: fzf-lua not available, falling back to quickfix",
+      vim.log.levels.WARN
+    )
     return show_quickfix(config, results, query_type, symbol)
   end
 
+  local utils = require("cscope_dynamic.utils")
+
   local entries = {}
   for _, result in ipairs(results) do
-    table.insert(entries, string.format(
-      "%s:%d:%s",
-      result.filename,
-      result.lnum,
-      result.text or ""
-    ))
+    table.insert(
+      entries,
+      string.format("%s:%d:%s", result.filename, result.lnum, result.text or "")
+    )
   end
 
   local cscope = require("cscope_dynamic")
@@ -60,67 +63,95 @@ local function show_fzf_lua(config, results, query_type, symbol)
       ["--nth"] = "1,3..",
       ["--with-nth"] = "1,2,3..",
     },
-    actions = {
-      ["default"] = function(selected)
-        if selected and #selected > 0 then
-          local entry = selected[1]
-          local file, line = entry:match("^([^:]+):(%d+)")
-          if file and line then
-            vim.cmd("edit " .. vim.fn.fnameescape(file))
-            vim.api.nvim_win_set_cursor(0, { tonumber(line), 0 })
-            vim.cmd("normal! zz")
-          end
-        end
-      end,
-      ["ctrl-v"] = function(selected)
-        if selected and #selected > 0 then
-          local entry = selected[1]
-          local file, line = entry:match("^([^:]+):(%d+)")
-          if file and line then
-            vim.cmd("vsplit " .. vim.fn.fnameescape(file))
-            vim.api.nvim_win_set_cursor(0, { tonumber(line), 0 })
-            vim.cmd("normal! zz")
-          end
-        end
-      end,
-      ["ctrl-x"] = function(selected)
-        if selected and #selected > 0 then
-          local entry = selected[1]
-          local file, line = entry:match("^([^:]+):(%d+)")
-          if file and line then
-            vim.cmd("split " .. vim.fn.fnameescape(file))
-            vim.api.nvim_win_set_cursor(0, { tonumber(line), 0 })
-            vim.cmd("normal! zz")
-          end
-        end
-      end,
-      ["ctrl-t"] = function(selected)
-        if selected and #selected > 0 then
-          local entry = selected[1]
-          local file, line = entry:match("^([^:]+):(%d+)")
-          if file and line then
-            vim.cmd("tabedit " .. vim.fn.fnameescape(file))
-            vim.api.nvim_win_set_cursor(0, { tonumber(line), 0 })
-            vim.cmd("normal! zz")
-          end
-        end
-      end,
-    },
     previewer = "builtin",
+    winopts = vim.tbl_deep_extend("force", {
+      height = 0.6,
+      width = 0.8,
+      preview = {
+        layout = "vertical",
+        vertical = "down:50%",
+      },
+      title = " " .. title .. " ",
+      title_pos = "center",
+    }, (config.picker_opts.fzf_lua or {}).winopts or {}),
   }, config.picker_opts.fzf_lua or {})
 
-  opts.winopts = vim.tbl_deep_extend("force", {
-    height = 0.6,
-    width = 0.8,
-    preview = {
-      layout = "vertical",
-      vertical = "down:50%",
-    },
-    title = " " .. title .. " ",
-    title_pos = "center",
-  }, (config.picker_opts.fzf_lua or {}).winopts or {})
+  -- Define actions (Windows-safe + cross-platform)
+  opts.actions = {
+    ["default"] = function(selected)
+      if selected and #selected > 0 then
+        local entry = selected[1]
+        local file, line = entry:match("^([A-Za-z]:\\[^:]+):(%d+)")
+          or entry:match("^([^:]+):(%d+)")
+        if file and line then
+         local utils = require("cscope_dynamic.utils")
+         file = utils.normalize_path(file)
+         vim.schedule(function()
+           vim.cmd("edit " .. vim.fn.fnameescape(file))
+           vim.api.nvim_win_set_cursor(0, { tonumber(line), 0 })
+           vim.cmd("normal! zz")
+         end)
+        end
+      end
+    end,
 
-  fzf.fzf_exec(entries, opts)
+    ["ctrl-v"] = function(selected)
+      if selected and #selected > 0 then
+        local entry = selected[1]
+        local file, line = entry:match("^([A-Za-z]:\\[^:]+):(%d+)")
+          or entry:match("^([^:]+):(%d+)")
+        if file and line then
+         local utils = require("cscope_dynamic.utils")
+         file = utils.normalize_path(file)
+         vim.schedule(function()
+           vim.cmd("edit " .. vim.fn.fnameescape(file))
+           vim.api.nvim_win_set_cursor(0, { tonumber(line), 0 })
+           vim.cmd("normal! zz")
+         end)
+        end
+      end
+    end,
+
+    ["ctrl-x"] = function(selected)
+      if selected and #selected > 0 then
+        local entry = selected[1]
+        local file, line = entry:match("^([A-Za-z]:\\[^:]+):(%d+)")
+          or entry:match("^([^:]+):(%d+)")
+        if file and line then
+         local utils = require("cscope_dynamic.utils")
+         file = utils.normalize_path(file)
+         vim.schedule(function()
+           vim.cmd("edit " .. vim.fn.fnameescape(file))
+           vim.api.nvim_win_set_cursor(0, { tonumber(line), 0 })
+           vim.cmd("normal! zz")
+         end)
+        end
+      end
+    end,
+
+    ["ctrl-t"] = function(selected)
+      if selected and #selected > 0 then
+        local entry = selected[1]
+        local file, line = entry:match("^([A-Za-z]:\\[^:]+):(%d+)")
+          or entry:match("^([^:]+):(%d+)")
+        if file and line then
+          file = utils.normalize_path(file)
+          vim.cmd("tabedit " .. vim.fn.fnameescape(file))
+          vim.api.nvim_win_set_cursor(0, { tonumber(line), 0 })
+          vim.cmd("normal! zz")
+        end
+      end
+    end,
+  }
+
+  -- fzf-lua API compatibility (newer and older)
+  if fzf.fzf_show then
+    fzf.fzf_show(entries, opts)
+  elseif fzf.show then
+    fzf.show(entries, opts)
+  else
+    fzf.fzf_exec(entries, opts)
+  end
 end
 
 --- Show results using telescope
@@ -131,7 +162,10 @@ end
 local function show_telescope(config, results, query_type, symbol)
   local ok, pickers = pcall(require, "telescope.pickers")
   if not ok then
-    vim.notify("cscope_dynamic: telescope not available, falling back to quickfix", vim.log.levels.WARN)
+    vim.notify(
+      "cscope_dynamic: telescope not available, falling back to quickfix",
+      vim.log.levels.WARN
+    )
     return show_quickfix(config, results, query_type, symbol)
   end
 
@@ -280,7 +314,6 @@ function M.show(config, results, query_type, symbol)
     return
   end
 
-  -- Jump directly if single result and configured
   if #results == 1 and config.skip_picker_for_single_result then
     local result = results[1]
     vim.cmd("edit " .. vim.fn.fnameescape(result.filename))
@@ -290,7 +323,6 @@ function M.show(config, results, query_type, symbol)
   end
 
   local picker_name = config.picker or "fzf-lua"
-
   if picker_name == "fzf-lua" then
     show_fzf_lua(config, results, query_type, symbol)
   elseif picker_name == "telescope" then
